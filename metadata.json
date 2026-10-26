@@ -1,0 +1,6 @@
+{
+  "name": "Eyad Tasks",
+  "description": "Real-time collaborative to-do list with offline access, multi-device sync, and startup branding for Eyad Alshareef.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

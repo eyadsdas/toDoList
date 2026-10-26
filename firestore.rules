@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 150 &&
+             data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidTaskList(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             (!('color' in data) || (data.color is string && data.color.size() <= 30)) &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             data.ownerName is string && data.ownerName.size() <= 100 &&
+             (!('ownerEmail' in data) || (data.ownerEmail is string && data.ownerEmail.size() <= 150)) &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 100 &&
+             (!('memberEmails' in data) || (data.memberEmails is list && data.memberEmails.size() <= 100)) &&
+             data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidTask(data) {
+      return data.listId is string && data.listId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             data.completed is bool &&
+             (!('priority' in data) || (data.priority in ['low', 'medium', 'high'])) &&
+             (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 50)) &&
+             (!('assignedTo' in data) || (data.assignedTo is string && data.assignedTo.size() <= 150)) &&
+             data.creatorId is string && data.creatorId.size() <= 128 &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 100 &&
+             (!('lastUpdatedBy' in data) || (data.lastUpdatedBy is string && data.lastUpdatedBy.size() <= 150)) &&
+             data.createdAt is timestamp &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidActivity(data) {
+      return data.listId is string && data.listId.size() <= 128 &&
+             (!('listTitle' in data) || (data.listTitle is string && data.listTitle.size() <= 100)) &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 100 &&
+             data.actorId is string && data.actorId.size() <= 128 &&
+             data.actorName is string && data.actorName.size() <= 100 &&
+             data.action is string && data.action.size() <= 50 &&
+             (!('taskTitle' in data) || (data.taskTitle is string && data.taskTitle.size() <= 200)) &&
+             data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       isValidUser(incoming()) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time;
+      allow update: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUser(incoming()) &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /task_lists/{listId} {
+      allow get: if isSignedIn() && isValidId(listId) && request.auth.uid in resource.data.memberUids;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if isSignedIn() &&
+                       isValidId(listId) &&
+                       incoming().ownerId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       isValidTaskList(incoming()) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time;
+      allow update: if isSignedIn() &&
+                       isValidId(listId) &&
+                       request.auth.uid in existing().memberUids &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTaskList(incoming()) &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       (
+                         (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'color', 'memberUids', 'memberEmails', 'updatedAt'])) ||
+                         (incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'memberEmails', 'updatedAt']))
+                       );
+      allow delete: if isSignedIn() && isValidId(listId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /tasks/{taskId} {
+      allow get: if isSignedIn() && isValidId(taskId) && request.auth.uid in resource.data.memberUids;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if isSignedIn() &&
+                       isValidId(taskId) &&
+                       incoming().creatorId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       isValidTask(incoming()) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time;
+      allow update: if isSignedIn() &&
+                       isValidId(taskId) &&
+                       request.auth.uid in existing().memberUids &&
+                       incoming().creatorId == existing().creatorId &&
+                       incoming().listId == existing().listId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTask(incoming()) &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'completed', 'priority', 'dueDate', 'assignedTo', 'memberUids', 'lastUpdatedBy', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(taskId) && request.auth.uid in existing().memberUids;
+    }
+
+    match /activities/{activityId} {
+      allow get: if isSignedIn() && isValidId(activityId) && request.auth.uid in resource.data.memberUids;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if isSignedIn() &&
+                       isValidId(activityId) &&
+                       incoming().actorId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       isValidActivity(incoming()) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time;
+      allow update, delete: if false;
+    }
+  }
+}

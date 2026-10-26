@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email", "createdAt"]
+    },
+    "TaskList": {
+      "title": "TaskList",
+      "description": "A collaborative task list containing multiple tasks",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "ownerEmail": { "type": "string", "format": "email" },
+        "memberUids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "memberEmails": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "ownerId", "ownerName", "memberUids", "createdAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A collaborative to-do item",
+      "type": "object",
+      "properties": {
+        "listId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "dueDate": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "memberUids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "lastUpdatedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listId", "title", "completed", "creatorId", "memberUids", "createdAt"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Real-time notification/activity log for task and list events",
+      "type": "object",
+      "properties": {
+        "listId": { "type": "string" },
+        "listTitle": { "type": "string" },
+        "memberUids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listId", "memberUids", "actorId", "actorName", "action", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles indexed by userId"
+    },
+    "/task_lists/{listId}": {
+      "schema": { "$ref": "#/entities/TaskList" },
+      "description": "Shared task lists collection"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks collection with denormalized memberUids for real-time collaboration"
+    },
+    "/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Activity stream for real-time sync notifications"
+    }
+  }
+}
